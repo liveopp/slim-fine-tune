@@ -15,7 +15,7 @@ parser.add_argument('--batch_size', default=32, type=int)
 parser.add_argument('--num_workers', default=4, type=int)
 parser.add_argument('--num_epochs1', default=1, type=int)
 parser.add_argument('--num_epochs2', default=2, type=int)
-parser.add_argument('--learning_rate1', default=5e-3, type=float)
+parser.add_argument('--learning_rate1', default=1e-2, type=float)
 parser.add_argument('--learning_rate2', default=1e-4, type=float)
 parser.add_argument('--dropout_keep_prob', default=0.5, type=float)
 parser.add_argument('--weight_decay', default=1e-4, type=float)
@@ -228,14 +228,19 @@ def main(args):
 
         # First we want to train only the reinitialized last layer fc8 for a few epochs.
         # We run minimize the loss only with respect to the fc8 variables (weight and bias).
-        fc8_optimizer = tf.train.MomentumOptimizer(args.learning_rate1, 0.95, use_nesterov=True)
-        fc8_train_op = fc8_optimizer.minimize(loss, var_list=fc8_variables)
-
-        # Then we want to finetune the entire model for a few epochs.
-        # We run minimize the loss only with respect to all the variables.
-        full_optimizer = tf.train.MomentumOptimizer(args.learning_rate2, 0.95, use_nesterov=True)
-        full_train_op = full_optimizer.minimize(loss)
+        global_step = tf.train.get_or_create_global_step()
+        learning_rate1 = tf.train.exponential_decay(learning_rate=args.learning_rate1,
+                global_step=global_step,
+                decay_steps=100, decay_rate=0.5)
+        learning_rate2 = tf.train.exponential_decay(learning_rate=args.learning_rate2,
+                global_step=global_step,
+                decay_steps=100, decay_rate=0.2)
+        optimizer1 = tf.train.MomentumOptimizer(learning_rate1, 0.8, use_nesterov=True)
+        optimizer2 = tf.train.MomentumOptimizer(learning_rate2, 0.8, use_nesterov=True)
+        fc8_train_op = optimizer1.minimize(loss, var_list=fc8_variables, global_step=global_step)
+        full_train_op = optimizer2.minimize(loss, global_step=global_step)
         opt_init = [var.initializer for var in tf.global_variables() if 'Momentum' in var.name]
+        step_init = global_step.initializer
 
 
         # Evaluation metrics
@@ -263,7 +268,7 @@ def main(args):
         sess.run(opt_init)
 
         # Update only the last layer for a few epochs.
-        step = 0
+        sess.run(step_init)
         for epoch in range(args.num_epochs1):
             # Run an epoch over the training data.
             print('Starting epoch %d / %d' % (epoch + 1, args.num_epochs1))
@@ -272,32 +277,37 @@ def main(args):
             sess.run(train_init_op)
             while True:
                 try:
-                    step += 1
-                    acc, summary, _ = sess.run([accuracy, merged, fc8_train_op], {is_training: True})
+                    acc, summary, step, _ = sess.run([accuracy, merged,
+                        global_step, fc8_train_op], {is_training: True})
                     train_writer.add_summary(summary, step)
+                    if step % 100 == 0:
+                        print(f'step: {step} train accuracy: {acc}')
                 except tf.errors.OutOfRangeError:
                     break
 
             # Check accuracy on the train and val sets every epoch.
             val_acc = check_accuracy(sess, correct_prediction, is_training, val_init_op)
-            print('Val accuracy: %f\n' % val_acc)
+            print(f'Val accuracy: {val_acc}')
 
 
         # Train the entire model for a few more epochs, continuing with the *same* weights.
+        sess.run(step_init)
         for epoch in range(args.num_epochs2):
             print('Starting epoch %d / %d' % (epoch + 1, args.num_epochs2))
             sess.run(train_init_op)
             while True:
                 try:
-                    step += 1
-                    acc, summary, _ = sess.run([accuracy, merged, full_train_op], {is_training: True})
+                    acc, summary, step, _ = sess.run([accuracy, merged,
+                        global_step, full_train_op], {is_training: True})
                     train_writer.add_summary(summary, step)
+                    if step % 100 == 0:
+                        print(f'step: {step} train accuracy: {acc}')
                 except tf.errors.OutOfRangeError:
                     break
 
             # Check accuracy on the train and val sets every epoch
             val_acc = check_accuracy(sess, correct_prediction, is_training, val_init_op)
-            print('Val accuracy: %f\n' % val_acc)
+            print(f'Val accuracy: {val_acc}')
 
 
 if __name__ == '__main__':
