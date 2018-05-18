@@ -269,6 +269,7 @@ def main(args):
 
         # Update only the last layer for a few epochs.
         sess.run(step_init)
+        step = 0
         for epoch in range(args.num_epochs1):
             # Run an epoch over the training data.
             print('Starting epoch %d / %d' % (epoch + 1, args.num_epochs1))
@@ -277,8 +278,9 @@ def main(args):
             sess.run(train_init_op)
             while True:
                 try:
-                    acc, summary, step, _ = sess.run([accuracy, merged,
-                        global_step, fc8_train_op], {is_training: True})
+                    step += 1
+                    acc, summary, _ = sess.run([accuracy, merged,
+                        fc8_train_op], {is_training: True})
                     train_writer.add_summary(summary, step)
                     if step % 100 == 0:
                         print(f'step: {step} train accuracy: {acc}')
@@ -297,8 +299,9 @@ def main(args):
             sess.run(train_init_op)
             while True:
                 try:
-                    acc, summary, step, _ = sess.run([accuracy, merged,
-                        global_step, full_train_op], {is_training: True})
+                    step += 1
+                    acc, summary, _ = sess.run([accuracy, merged,
+                        full_train_op], {is_training: True})
                     train_writer.add_summary(summary, step)
                     if step % 100 == 0:
                         print(f'step: {step} train accuracy: {acc}')
