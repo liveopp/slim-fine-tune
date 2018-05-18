@@ -4,7 +4,6 @@ import os
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.slim.nets as nets
-from vgg_preprocessing import preprocess_image
 
 
 parser = argparse.ArgumentParser()
@@ -16,7 +15,7 @@ parser.add_argument('--batch_size', default=32, type=int)
 parser.add_argument('--num_workers', default=4, type=int)
 parser.add_argument('--num_epochs1', default=1, type=int)
 parser.add_argument('--num_epochs2', default=4, type=int)
-parser.add_argument('--learning_rate1', default=1e-2, type=float)
+parser.add_argument('--learning_rate1', default=1e-3, type=float)
 parser.add_argument('--learning_rate2', default=1e-4, type=float)
 parser.add_argument('--dropout_keep_prob', default=0.6, type=float)
 parser.add_argument('--batch_decay', default=0.99, type=float)
